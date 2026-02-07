@@ -23,6 +23,7 @@ const Booking = () => {
     time: ''
   });
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   const timeSlots = useMemo(() => {
@@ -44,7 +45,7 @@ const Booking = () => {
     );
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!currentUser) {
@@ -80,12 +81,54 @@ const Booking = () => {
       userPhone: formData.phone
     };
 
-    DB.appointments.add(newAppointment);
-    setMessage({ type: 'success', text: 'Session confirmed! Your stylist will be ready for you.' });
-    
-    setTimeout(() => {
-      navigate('/dashboard');
-    }, 2000);
+    setIsSubmitting(true);
+    setMessage(null);
+
+    try {
+      // Prepare the payload for Formspree
+      const payload = {
+        _subject: `New Booking: ${newAppointment.serviceName} - ${newAppointment.userName}`,
+        "Customer Name": formData.name,
+        "Customer Email": formData.email,
+        "Customer Phone": formData.phone,
+        "Gender": formData.gender,
+        "Service": service?.name,
+        "Price": `INR ${service?.price}`,
+        "Artisan Stylist": stylist?.name,
+        "Date": formData.date,
+        "Time Slot": formData.time,
+        "Booking ID": newAppointment.id
+      };
+
+      const response = await fetch('https://formspree.io/f/mqedkpgv', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        DB.appointments.add(newAppointment);
+        setMessage({ type: 'success', text: 'Session confirmed! Your details have been sent to our concierge.' });
+        
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 2000);
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Formspree submission failed');
+      }
+    } catch (err) {
+      console.error('Formspree error:', err);
+      setMessage({ 
+        type: 'error', 
+        text: 'Unable to sync with our server. Please check your connection or contact us directly at +91 7738839027.' 
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -111,8 +154,9 @@ const Booking = () => {
                 type="text" required
                 value={formData.name}
                 onChange={e => setFormData({...formData, name: e.target.value})}
-                className="w-full px-5 py-4 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-amber-500 outline-none transition" 
+                className="w-full px-5 py-4 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-amber-500 outline-none transition disabled:opacity-50" 
                 placeholder="Ex: Vikram Singh"
+                disabled={isSubmitting}
               />
             </div>
             <div>
@@ -121,8 +165,9 @@ const Booking = () => {
                 type="tel" required
                 value={formData.phone}
                 onChange={e => setFormData({...formData, phone: e.target.value})}
-                className="w-full px-5 py-4 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-amber-500 outline-none transition" 
+                className="w-full px-5 py-4 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-amber-500 outline-none transition disabled:opacity-50" 
                 placeholder="+91"
+                disabled={isSubmitting}
               />
             </div>
             <div>
@@ -131,7 +176,8 @@ const Booking = () => {
                 type="email" required
                 value={formData.email}
                 onChange={e => setFormData({...formData, email: e.target.value})}
-                className="w-full px-5 py-4 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-amber-500 outline-none transition" 
+                className="w-full px-5 py-4 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-amber-500 outline-none transition disabled:opacity-50" 
+                disabled={isSubmitting}
               />
             </div>
           </div>
@@ -144,7 +190,8 @@ const Booking = () => {
                 required
                 value={formData.serviceId}
                 onChange={e => setFormData({...formData, serviceId: e.target.value})}
-                className="w-full px-5 py-4 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-amber-500 outline-none transition"
+                className="w-full px-5 py-4 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-amber-500 outline-none transition disabled:opacity-50"
+                disabled={isSubmitting}
               >
                 <option value="">Choose Service</option>
                 {services.map(s => <option key={s.id} value={s.id}>{s.name} (₹{s.price})</option>)}
@@ -156,7 +203,8 @@ const Booking = () => {
                 required
                 value={formData.stylistId}
                 onChange={e => setFormData({...formData, stylistId: e.target.value})}
-                className="w-full px-5 py-4 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-amber-500 outline-none transition"
+                className="w-full px-5 py-4 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-amber-500 outline-none transition disabled:opacity-50"
+                disabled={isSubmitting}
               >
                 <option value="">Select Stylist</option>
                 {stylists.map(st => <option key={st.id} value={st.id}>{st.name}</option>)}
@@ -170,7 +218,8 @@ const Booking = () => {
                   min={new Date().toISOString().split('T')[0]}
                   value={formData.date}
                   onChange={e => setFormData({...formData, date: e.target.value})}
-                  className="w-full px-5 py-4 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-amber-500 outline-none transition"
+                  className="w-full px-5 py-4 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-amber-500 outline-none transition disabled:opacity-50"
+                  disabled={isSubmitting}
                 />
               </div>
               <div>
@@ -179,7 +228,8 @@ const Booking = () => {
                   required
                   value={formData.time}
                   onChange={e => setFormData({...formData, time: e.target.value})}
-                  className="w-full px-5 py-4 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-amber-500 outline-none transition"
+                  className="w-full px-5 py-4 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-amber-500 outline-none transition disabled:opacity-50"
+                  disabled={isSubmitting}
                 >
                   <option value="">Time</option>
                   {timeSlots.map(time => (
@@ -193,8 +243,20 @@ const Booking = () => {
           </div>
 
           <div className="md:col-span-2 pt-6">
-            <button type="submit" className="w-full bg-amber-600 text-white py-5 rounded-xl font-black text-lg hover:bg-amber-700 transition-all shadow-xl shadow-amber-900/20 active:scale-[0.98]">
-              Confirm My Chair
+            <button 
+              type="submit" 
+              disabled={isSubmitting}
+              className={`w-full bg-amber-600 text-white py-5 rounded-xl font-black text-lg hover:bg-amber-700 transition-all shadow-xl shadow-amber-900/20 active:scale-[0.98] flex items-center justify-center gap-3 ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''}`}
+            >
+              {isSubmitting ? (
+                <>
+                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Processing...
+                </>
+              ) : 'Confirm My Chair'}
             </button>
           </div>
         </form>
